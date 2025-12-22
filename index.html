@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interactive Thermometer Metric — Customer Retention</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1b2e;
+      --line:rgba(255,255,255,.10);
+      --text:#e8f0ff;
+      --muted:#9bb0d1;
+      --shadow:0 14px 32px rgba(0,0,0,.45);
+      --radius:18px;
+
+      --fill:#dc2626;     /* red fill */
+      --stroke:#b7b7b7;   /* gray outline */
+      --tube:#ffffff;     /* tube interior */
+      --tick:#6b7280;     /* tick/label gray */
+      --success:#16a34a;  /* green */
+      --target:#60a5fa;   /* blue */
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      padding:16px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: radial-gradient(1200px 600px at 10% 10%, #162a4d 0%, var(--bg) 60%);
+      color:var(--text);
+    }
+
+    .card{
+      max-width: 980px;
+      margin: 0 auto;
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    header{
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--line);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .title{
+      font-size:16px;
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+    .subtitle{
+      margin-top:4px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+
+    .body{
+      padding: 14px 16px 18px;
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap: 14px;
+      align-items:stretch;
+    }
+    @media (max-width: 860px){
+      .body{ grid-template-columns: 1fr; }
+    }
+
+    .panel{
+      border:1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(0,0,0,.18);
+      padding: 12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .controls{
+      border:1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(0,0,0,.18);
+      padding: 12px;
+      display:grid;
+      gap: 10px;
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .kpi{
+      padding: 10px 12px;
+      border:1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(15,27,46,.45);
+      min-width: 190px;
+    }
+    .kpi .label{ font-size:12px; color:var(--muted); }
+    .kpi .value{ font-size:22px; font-weight:900; margin-top:2px; }
+
+    input[type="range"]{
+      width: 100%;
+      accent-color: var(--target);
+    }
+    .hint{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+    }
+    .btn{
+      appearance:none;
+      border:1px solid var(--line);
+      background: rgba(15,27,46,.55);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .btn:hover{ background: rgba(15,27,46,.85); }
+
+    footer{
+      padding: 10px 16px 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    code{
+      background: rgba(0,0,0,.25);
+      border: 1px solid var(--line);
+      padding: 2px 6px;
+      border-radius: 8px;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="card" role="region" aria-label="Interactive thermometer metric">
+    <header>
+      <div>
+        <div class="title">Customer Retention Thermometer</div>
+        <div class="subtitle">
+          Where we are: <b id="hdrCurrent">93%</b> • Target: <b>97%</b> • Aspirational: <b>100%</b><br/>
+          Shows <b>Success</b> in the banner when current retention is <b>97%+</b>.
+        </div>
+      </div>
+    </header>
+
+    <div class="body">
+      <div class="panel">
+        <!-- SVG Thermometer -->
+        <svg id="thermo" width="320" height="560" viewBox="0 0 320 560" aria-label="Thermometer gauge">
+          <!-- Banner -->
+          <path id="bannerPath"
+                d="M60 35 Q160 0 260 35 L260 85 Q160 120 60 85 Z"
+                fill="none" stroke="var(--fill)" stroke-width="6" />
+          <text id="bannerText" x="160" y="70" text-anchor="middle"
+                font-size="42" font-weight="900" fill="transparent"
+                style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
+            Success
+          </text>
+
+          <!-- Thermometer tube outline -->
+          <rect x="125" y="90" width="70" height="360" rx="28" ry="28"
+                fill="var(--tube)" stroke="var(--stroke)" stroke-width="10"/>
+
+          <!-- Bulb outline -->
+          <circle cx="160" cy="470" r="62" fill="var(--tube)" stroke="var(--stroke)" stroke-width="10"/>
+
+          <!-- Fill (tube + bulb) -->
+          <clipPath id="tubeClip">
+            <rect x="125" y="90" width="70" height="360" rx="28" ry="28"/>
+          </clipPath>
+
+          <rect id="fillRect" x="125" y="450" width="70" height="0"
+                fill="var(--fill)" clip-path="url(#tubeClip)"/>
+          <circle id="fillBulb" cx="160" cy="470" r="52" fill="var(--fill)"/>
+
+          <!-- Tick marks + labels (0-100 by 10s) -->
+          <g id="ticks" font-family="system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial"
+             font-size="22" font-weight="800" fill="var(--tick)">
+            <!-- computed by JS -->
+          </g>
+
+          <!-- Target marker at 97 -->
+          <g id="targetMarker">
+            <polygon id="targetArrow" points="250,0 270,10 250,20" fill="var(--target)"></polygon>
+            <text id="targetText" x="278" y="12" font-size="18" font-weight="900"
+                  fill="var(--target)" dominant-baseline="middle">97%</text>
+          </g>
+
+          <!-- Current label -->
+          <text id="currentLabel" x="160" y="545" text-anchor="middle"
+                font-size="28" font-weight="900" fill="var(--text)"
+                style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
+            93%
+          </text>
+          <text x="160" y="525" text-anchor="middle"
+                font-size="12" font-weight="700" fill="var(--muted)"
+                style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;">
+            Current retention
+          </text>
+        </svg>
+      </div>
+
+      <div class="controls">
+        <div class="row">
+          <div class="kpi">
+            <div class="label">Current</div>
+            <div class="value" id="kpiCurrent">93%</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Gap to 97%</div>
+            <div class="value" id="kpiGap">4%</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="hint" style="margin-bottom:8px;">
+            Drag the slider to simulate new retention values (or wire this to your KPI feed).
+          </div>
+          <input id="slider" type="range" min="0" max="100" step="1" value="93" />
+        </div>
+
+        <div class="row">
+          <button class="btn" id="btn93" type="button">93%</button>
+          <button class="btn" id="btn97" type="button">97%</button>
+          <button class="btn" id="btn100" type="button">100%</button>
+        </div>
+
+        <div class="hint">
+          Drop-in integration: call <code>setRetention(93)</code> from any script (Power Automate → local HTML, SharePoint embed, etc.).
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Note: This is a self-contained HTML widget (no external images). It matches the fundraiser thermometer style and shows <b>Success</b> automatically at <b>97%+</b>.
+    </footer>
+  </div>
+
+<script>
+  const target = 97;
+  const aspirational = 100;
+
+  // Geometry
+  const tubeTop = 90;
+  const tubeBottom = 450;      // y where tube ends (above bulb)
+  const tubeHeight = tubeBottom - tubeTop;
+
+  const fillRect = document.getElementById("fillRect");
+  const fillBulb = document.getElementById("fillBulb");
+  const bannerText = document.getElementById("bannerText");
+  const currentLabel = document.getElementById("currentLabel");
+  const hdrCurrent = document.getElementById("hdrCurrent");
+  const kpiCurrent = document.getElementById("kpiCurrent");
+  const kpiGap = document.getElementById("kpiGap");
+
+  const ticksGroup = document.getElementById("ticks");
+  const targetMarker = document.getElementById("targetMarker");
+  const targetArrow = document.getElementById("targetArrow");
+  const targetText = document.getElementById("targetText");
+
+  // Build tick marks and labels: 0..100 step 10
+  function buildTicks(){
+    // Clear
+    while(ticksGroup.firstChild) ticksGroup.removeChild(ticksGroup.firstChild);
+
+    for(let p=0; p<=100; p+=10){
+      const y = pctToY(p);
+
+      // tick line (left)
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", "108");
+      line.setAttribute("x2", "122");
+      line.setAttribute("y1", y);
+      line.setAttribute("y2", y);
+      line.setAttribute("stroke", "var(--stroke)");
+      line.setAttribute("stroke-width", p % 20 === 0 ? "4" : "3");
+      line.setAttribute("opacity", "0.85");
+
+      // label (left)
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", "86");
+      text.setAttribute("y", y+8);
+      text.setAttribute("text-anchor", "end");
+      text.textContent = `${p}%`;
+
+      ticksGroup.appendChild(line);
+      ticksGroup.appendChild(text);
+    }
+  }
+
+  function pctToY(pct){
+    // 0% at bottom of tube, 100% at top
+    const clamped = Math.max(0, Math.min(100, pct));
+    return tubeBottom - (clamped/100) * tubeHeight;
+  }
+
+  function setSuccessVisible(isVisible){
+    bannerText.setAttribute("fill", isVisible ? "var(--text)" : "transparent");
+  }
+
+  function statusFillColor(p){
+    // optional: keep fill red but you can upgrade this to bands if desired
+    if(p >= target) return getCss("--success");
+    if(p >= 90) return "#f59e0b"; // amber when close
+    return getCss("--fill");      // red default
+  }
+
+  function getCss(varName){
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
+  // Position target marker at 97%
+  function positionTargetMarker(){
+    const y = pctToY(target);
+    targetMarker.setAttribute("transform", `translate(0, ${y-10})`);
+    targetArrow.setAttribute("points", "230,0 250,10 230,20");
+    targetText.setAttribute("x", "258");
+    targetText.setAttribute("y", "10");
+  }
+
+  // Smooth animate updates
+  let currentValue = 93;
+
+  function updateUI(v){
+    const p = Math.max(0, Math.min(100, v));
+    const yTop = pctToY(p);
+
+    // Fill rect extends from yTop down to tubeBottom
+    const height = tubeBottom - yTop;
+    fillRect.setAttribute("y", yTop);
+    fillRect.setAttribute("height", height);
+
+    // fill color
+    const c = statusFillColor(p);
+    fillRect.setAttribute("fill", c);
+    fillBulb.setAttribute("fill", c);
+
+    // labels
+    const text = `${Math.round(p)}%`;
+    currentLabel.textContent = text;
+    hdrCurrent.textContent = text;
+    kpiCurrent.textContent = text;
+
+    const gap = Math.max(0, target - p);
+    kpiGap.textContent = `${Math.round(gap)}%`;
+
+    // success banner visibility
+    setSuccessVisible(p >= target);
+  }
+
+  function animateTo(newValue){
+    const start = currentValue;
+    const end = Math.max(0, Math.min(100, newValue));
+    const duration = 650;
+    const t0 = performance.now();
+
+    function frame(now){
+      const p = Math.min(1, (now - t0) / duration);
+      const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+      currentValue = start + (end - start) * eased;
+      updateUI(currentValue);
+      if(p < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // Public API
+  window.setRetention = (value) => animateTo(value);
+
+  // Wire controls
+  const slider = document.getElementById("slider");
+  slider.addEventListener("input", (e) => animateTo(+e.target.value));
+
+  document.getElementById("btn93").addEventListener("click", () => { slider.value=93; animateTo(93); });
+  document.getElementById("btn97").addEventListener("click", () => { slider.value=97; animateTo(97); });
+  document.getElementById("btn100").addEventListener("click", () => { slider.value=100; animateTo(100); });
+
+  // Init
+  buildTicks();
+  positionTargetMarker();
+  updateUI(currentValue);
+</script>
+</body>
+</html>
